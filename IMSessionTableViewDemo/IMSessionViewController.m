@@ -94,9 +94,11 @@
         __strong __typeof(weakSelf)strongSelf = weakSelf;
         [strongSelf.tableView.mj_header endRefreshing];
         
+        static CGFloat contentYOffset;
         static dispatch_once_t onceToken;
         dispatch_once(&onceToken, ^{
-            strongSelf.contentYOffset = strongSelf.tableView.contentOffset.y;
+            // 记录首次加载时的 contentOffset.y 的值，下方求 contentOffset 的值要用到
+            contentYOffset = strongSelf.tableView.contentOffset.y;
         });
         
         NSMutableArray *indexPaths = [[NSMutableArray alloc] initWithCapacity:list.count];
@@ -127,7 +129,7 @@
         CGFloat yOffset = beginContentOffset.y+(endContentSize.height-beginContentSize.height);
         if (beginContentSize.height == 0) {
             yOffset = endContentSize.height - (CGRectGetHeight(strongSelf.tableView.bounds));
-            yOffset = MAX(strongSelf.contentYOffset, yOffset); // yOffset 最小为 contentYOffset，当消息不能填满屏幕时触发
+            yOffset = MAX(contentYOffset, yOffset); // yOffset 最小为 contentYOffset，当消息不能填满屏幕时触发
         }
         CGPoint endContentOffset = CGPointMake(xOffset, yOffset);
         [strongSelf.tableView setContentOffset:endContentOffset animated:NO];
@@ -135,10 +137,17 @@
 }
 
 - (void)virtualFetchMsgListWithComplete:(void(^)(BOOL isSucc, BOOL hasMoreMsg, NSArray *list))complete {
-    int msgCount = 5;   // 第一次加载只有5条数据，不充满屏幕，如果想模拟第一次加载充满屏幕，请改大这个数值
+    /**
+     Attention:
+     1. 第一次加载只有 5 条数据，不充满屏幕，如果想模拟第一次加载充满屏幕，请改大这个数值
+     2. Demo 里，当列表只显示 5 条数据时，再下拉加载更多会有跳动。但正常来说，如果首次加载无法满屏，应该不存在能继续下拉加载更多的情况，所以这个跳动可暂时忽略
+     */
+    int msgCount = 5;
     NSMutableArray *array = [[NSMutableArray alloc] init];
     for (int i=0; i < msgCount; i++) {
         NSString *msgObj = [NSString stringWithFormat:@"数据源 - %ld", self.virtualMsgCount++];
+        
+        // 这里选择在列表首位插入，还是在末尾 appending，取决于数据源
         [array insertObject:msgObj atIndex:0];
         [self.msgList insertObject:msgObj atIndex:0];
     }
